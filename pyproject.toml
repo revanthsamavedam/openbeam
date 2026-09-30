@@ -1,0 +1,31 @@
+[project]
+name = "openbeam"
+version = "0.1.0"
+description = "Open, cross-device file sharing in the spirit of AirDrop: mDNS discovery + TLS transfers. No accounts, no cloud, no vendor lock-in."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "openbeam contributors" }]
+keywords = ["airdrop", "file-sharing", "mdns", "p2p", "lan"]
+dependencies = [
+  "zeroconf>=0.131",
+  "cryptography>=42",
+]
+
+[project.optional-dependencies]
+qr = ["qrcode"]
+test = ["pytest"]
+
+[project.scripts]
+openbeam = "openbeam.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["openbeam*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
