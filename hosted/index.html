@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>openbeam — online</title>
+<meta name="description" content="Send files between any two devices over the internet, browser to browser. No account, no cloud copy.">
+<style>
+body{font-family:-apple-system,system-ui,sans-serif;max-width:720px;margin:0 auto;
+padding:16px;background:#0f1115;color:#e8eaf0}
+h1{font-size:1.5em;margin:.2em 0 .1em}h2{font-size:1.05em;color:#9fb4ff;margin-top:6px}
+.sub{color:#9aa3b2;font-size:.92em;margin:0 0 6px}
+section{background:#171a21;border:1px solid #262b36;border-radius:12px;padding:16px;margin:14px 0}
+button{background:#3b6cff;border:none;color:#fff;border-radius:8px;padding:9px 16px;
+font-size:.92em;cursor:pointer;margin:4px 4px 4px 0}
+button.ghost{background:#2a2f3a}button.danger{background:#a33333}
+button:disabled{opacity:.45;cursor:default}
+input[type=text],input[type=file]{background:#0f1115;color:#e8eaf0;border:1px solid #333a48;
+border-radius:8px;padding:9px;max-width:100%;font-size:1em}
+input[type=text].code{font-family:ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;width:11em}
+.mono{font-family:ui-monospace,monospace;font-size:.85em;color:#9aa3b2;word-break:break-all}
+.bigcode{font-family:ui-monospace,monospace;font-size:2em;letter-spacing:.25em;color:#fff;
+background:#0f1115;border:1px dashed #3b6cff;border-radius:10px;padding:10px 14px;display:inline-block;margin:8px 0}
+.prog{height:10px;background:#0f1115;border:1px solid #333a48;border-radius:6px;overflow:hidden;margin-top:8px}
+.prog>div{height:100%;width:0;background:#3b6cff;transition:width .15s}
+.log{white-space:pre-wrap;font-size:.88em;color:#9aa3b2;margin-top:10px;min-height:1.2em}
+.ok{color:#7de2a0}.err{color:#f08a80}
+.badge{font-size:.72em;background:#243b2a;color:#7de2a0;border-radius:6px;padding:2px 8px}
+a{color:#9fb4ff}
+.hidden{display:none}
+footer{color:#5f6875;font-size:.8em;margin:22px 0 8px}
+.offer{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<h1>📡 openbeam <span style="color:#3b6cff">online</span></h1>
+<p class="sub">Send a file between any two devices over the internet — phone, laptop, anything with a browser. No account.
+Two ways: <b>Live</b> streams directly browser-to-browser (nothing stored, both devices online together),
+or <b>Drop</b> stores the file for 24 hours so the other side can pick it up whenever (works on any network).</p>
+
+<section>
+<h2>➡️ Send a file</h2>
+<input type="file" id="fileIn"><br>
+<div id="sendPrep" class="log"></div>
+<div id="sendOffer" class="hidden">
+  <div>Tell the other device this code, or send them the link:</div>
+  <div class="bigcode" id="sendCode">------</div><br>
+  <button class="ghost" id="copyLinkBtn">Copy share link</button>
+  <span class="mono" id="shareLink"></span>
+  <div class="log" id="sendStatus">Waiting for the other device to connect…</div>
+</div>
+<div id="sendApproval" class="hidden"></div>
+<div id="sendProgress" class="hidden">
+  <div class="mono" id="sendPct"></div>
+  <div class="prog"><div id="sendBar"></div></div>
+</div>
+</section>
+
+<section>
+<h2>⬅️ Receive a file</h2>
+<div>Enter the sender's code:</div><br>
+<input type="text" class="code" id="recvCode" maxlength="6" placeholder="ABC123" autocomplete="off">
+<button id="recvBtn">Connect</button>
+<div class="log" id="recvStatus"></div>
+<div id="recvProgress" class="hidden">
+  <div class="mono" id="recvPct"></div>
+  <div class="prog"><div id="recvBar"></div></div>
+</div>
+<div id="recvDone"></div>
+</section>
+
+<section>
+<h2>📦 Drop a file — pick it up later, any network</h2>
+<p class="sub">For when the other device isn't online right now, or a network blocks direct connections.
+The file is stored (up to <b>1 GB</b>) and the drop <b>expires after 24 hours</b>. Anyone with the code can download it — share the code privately.</p>
+<input type="file" id="dropFile"><br><br>
+<button id="dropBtn">Upload drop</button>
+<div class="log" id="dropStatus"></div>
+<div id="dropProgress" class="hidden">
+  <div class="mono" id="dropPct"></div>
+  <div class="prog"><div id="dropBar"></div></div>
+</div>
+<div id="dropOffer" class="hidden">
+  <div>Give the other device this code, or send them the link:</div>
+  <div class="bigcode" id="dropCodeShow">------</div><br>
+  <button class="ghost" id="dropCopyBtn">Copy pickup link</button>
+  <span class="mono" id="dropLink"></span>
+  <div class="log" id="dropMeta"></div>
+</div>
+<hr style="border:none;border-top:1px solid #262b36;margin:18px 0">
+<div>Pick up a drop — enter its code:</div><br>
+<input type="text" class="code" id="pickCode" maxlength="6" placeholder="ABC123" autocomplete="off">
+<button id="pickBtn">Find drop</button>
+<div class="log" id="pickStatus"></div>
+<div id="pickResult"></div>
+</section>
+
+<section>
+<h2>How it works</h2>
+<p class="sub"><b>Live:</b> 1. Sender picks a file and gets a 6-letter code.<br>
+2. Receiver enters the code here — the sender sees the request and taps <b>Accept</b> (nothing moves without approval, same as openbeam on your Wi-Fi).<br>
+3. The file streams directly between the two browsers, encrypted by WebRTC (DTLS), and the receiver checks its SHA-256 before saving it.<br>
+<b>Drop:</b> the file is uploaded to storage with its own code and checksum, held for 24 hours, then deleted. The receiver just needs the code or link — no timing coordination.</p>
+<p class="sub">On the same Wi-Fi? The original openbeam CLI is faster and needs no internet at all:
+<a href="https://github.com/revanthsamavedam/openbeam">github.com/revanthsamavedam/openbeam</a></p>
+</section>
+
+<footer>openbeam online · live files are never stored on a server (practical limit ~500 MB — the file is held in memory on both devices) · drops up to 1 GB, held 24 hours · some strict corporate networks block direct browser-to-browser connections — use Drop there</footer>
+
+<script src="peerjs.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const CHUNK=64*1024, PREFIX='openbeam-online-';
+const ALPHABET='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtSize=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':b<1073741824?(b/1048576).toFixed(1)+' MB':(b/1073741824).toFixed(2)+' GB';
+const newCode=()=>Array.from({length:6},()=>ALPHABET[Math.floor(Math.random()*ALPHABET.length)]).join('');
+async function sha256(buf){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function deviceName(){const ua=navigator.userAgent;const os=/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':/Mac/.test(ua)?'Mac':/Windows/.test(ua)?'Windows':/Linux/.test(ua)?'Linux':'Web';const br=/Edg\//.test(ua)?'Edge':/Chrome/.test(ua)?'Chrome':/Firefox/.test(ua)?'Firefox':/Safari/.test(ua)?'Safari':'Browser';return br+' on '+os;}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// Optional self-hosted broker: ?broker=myserver.example.com:9000 (default: PeerJS cloud)
+// Optional TURN override: ?turn=host:port:user:pass (helps on strict networks)
+function peerOpts(){
+  const q=new URLSearchParams(location.search);
+  const opts={debug:0};
+  const t=q.get('turn');
+  if(t){ const [h,p,u,c]=t.split(':');
+    opts.config={iceServers:[{urls:'turn:'+h+':'+(p||'3478'), username:u||'', credential:c||''},
+                             {urls:'stun:stun.l.google.com:19302'}]}; }
+  const b=q.get('broker');
+  if(!b) return opts;
+  const [host,port]=b.split(':');
+  const local=(host==='127.0.0.1'||host==='localhost');
+  return {...opts, host, port:parseInt(port||'9000',10), path:'/', secure:!local&&location.protocol==='https:'};
+}
+
+/* ---------------- SENDER ---------------- */
+let sPeer=null, sFile=null, sHash=null, sBusy=false;
+
+$('fileIn').addEventListener('change', async ()=>{
+  const f=$('fileIn').files[0];
+  if(!f) return;
+  sFile=f;
+  $('sendPrep').textContent='Preparing '+f.name+' ('+fmtSize(f.size)+') — computing checksum…';
+  try{ sHash=await sha256(await f.arrayBuffer()); }
+  catch(e){ $('sendPrep').innerHTML='<span class="err">Could not read that file in this browser. Try a smaller file.</span>'; return; }
+  $('sendPrep').innerHTML='Ready: <b>'+esc(f.name)+'</b> ('+fmtSize(f.size)+')<br><span class="mono">sha256 '+esc(sHash.slice(0,16))+'…</span>';
+  startSenderPeer();
+});
+
+function startSenderPeer(){
+  if(typeof Peer==='undefined'){ $('sendStatus').innerHTML='<span class="err">The connection library failed to load — check your internet and refresh the page.</span>'; return; }
+  if(sPeer) { try{sPeer.destroy();}catch(e){} sPeer=null; }
+  const code=newCode();
+  const peer=new Peer(PREFIX+code,peerOpts());
+  sPeer=peer;
+  peer.on('open',()=>{
+    $('sendOffer').classList.remove('hidden');
+    $('sendCode').textContent=code;
+    const broker=new URLSearchParams(location.search).get('broker');
+    const link=location.origin+location.pathname+'?c='+code+(broker?('&broker='+encodeURIComponent(broker)):'');
+    $('shareLink').textContent=link;
+    $('copyLinkBtn').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(link);$('copyLinkBtn').textContent='Copied ✓';setTimeout(()=>$('copyLinkBtn').textContent='Copy share link',1500);};
+    $('sendStatus').textContent='Waiting for the other device to connect… (keep this page open)';
+  });
+  peer.on('error',err=>{
+    if(err.type==='unavailable-id'){ startSenderPeer(); return; }
+    $('sendStatus').innerHTML='<span class="err">Connection problem: '+esc(err.type)+'. Check your internet and pick the file again.</span>';
+  });
+  peer.on('disconnected',()=>{ $('sendStatus').textContent='Connection to the matchmaking server dropped — reconnecting…'; try{peer.reconnect();}catch(e){} });
+  peer.on('connection',conn=>{
+    conn.on('data',data=>{
+      if(data && data.t==='hello'){ showApproval(conn, data.name||'A device'); }
+      if(data && data.t==='verified'){
+        $('sendStatus').innerHTML= data.ok
+          ? '<span class="ok">✅ Delivered — the other device verified the checksum. You can close this page.</span>'
+          : '<span class="err">⚠️ The other device reported a checksum mismatch. Try again.</span>';
+        sBusy=false;
+      }
+    });
+    conn.on('close',()=>{ if(!sBusy) $('sendStatus').textContent='The other device disconnected. Your code still works — they can reconnect.'; });
+  });
+}
+
+function showApproval(conn, name){
+  if(sBusy){ conn.on('open',()=>conn.send({t:'busy'})); return; }
+  const box=$('sendApproval');
+  box.classList.remove('hidden');
+  box.innerHTML='<div class="offer"><span>📥 <b>'+esc(name)+'</b> wants to receive <b>'+esc(sFile.name)+'</b> ('+fmtSize(sFile.size)+')</span>'+
+    '<span><button id="accBtn">Accept</button><button class="danger" id="decBtn">Decline</button></span></div>';
+  $('sendStatus').textContent='A device connected — waiting for your decision.';
+  $('accBtn').onclick=()=>{ box.classList.add('hidden'); sendTo(conn); };
+  $('decBtn').onclick=()=>{ box.classList.add('hidden'); try{conn.send({t:'declined'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},300); $('sendStatus').textContent='Declined. Waiting for another device…'; };
+}
+
+async function sendTo(conn){
+  sBusy=true;
+  const waitOpen=conn.open?Promise.resolve():new Promise(r=>conn.on('open',r));
+  await waitOpen;
+  conn.send({t:'meta', filename:sFile.name, size:sFile.size, sha256:sHash, mime:sFile.type||'application/octet-stream'});
+  $('sendProgress').classList.remove('hidden');
+  let offset=0;
+  const buf=await sFile.arrayBuffer();
+  while(offset<buf.byteLength){
+    while(conn.bufferSize>4*1024*1024) await sleep(50);
+    const slice=buf.slice(offset, offset+CHUNK);
+    conn.send(slice);
+    offset+=slice.byteLength;
+    const pct=Math.floor(offset*100/buf.byteLength);
+    $('sendBar').style.width=pct+'%';
+    $('sendPct').textContent='Sending '+sFile.name+' — '+pct+'% ('+fmtSize(offset)+' / '+fmtSize(buf.byteLength)+')';
+  }
+  if(buf.byteLength===0){ $('sendBar').style.width='100%'; }
+  conn.send({t:'end'});
+  $('sendStatus').textContent='Sent — waiting for the other device to verify the checksum…';
+}
+
+/* ---------------- RECEIVER ---------------- */
+let rPeer=null;
+const params=new URLSearchParams(location.search);
+if(params.get('c')){ $('recvCode').value=params.get('c').toUpperCase(); $('recvStatus').textContent='Code filled in from the link — tap Connect.'; }
+
+$('recvBtn').addEventListener('click',()=>{
+  const code=$('recvCode').value.trim().toUpperCase();
+  if(code.length!==6){ $('recvStatus').innerHTML='<span class="err">That code should be 6 characters.</span>'; return; }
+  $('recvDone').innerHTML='';
+  if(typeof Peer==='undefined'){ $('recvStatus').innerHTML='<span class="err">The connection library failed to load — check your internet and refresh the page.</span>'; return; }
+  $('recvStatus').textContent='Connecting…';
+  if(rPeer){ try{rPeer.destroy();}catch(e){} }
+  const peer=new Peer(peerOpts());
+  rPeer=peer;
+  let opened=false;
+  const slowTimer=setTimeout(()=>{ if(!opened) $('recvStatus').innerHTML='Still connecting… If this stays, the sender may have closed or backgrounded their page — ask them to keep it open in the foreground, then tap Connect again.'; },25000);
+  peer.on('open',()=>{
+    opened=true;
+    $('recvStatus').textContent='Dialing the sender…';
+    const conn=peer.connect(PREFIX+code,{reliable:true});
+    conn.on('iceStateChanged',st=>{ if(st==='disconnected'||st==='failed') $('recvStatus').innerHTML='<span class="err">The direct connection dropped ('+esc(st)+'). Both devices need a network that allows browser-to-browser connections — try a different Wi-Fi.</span>'; });
+    let gotMeta=null, chunks=[], received=0, done=false;
+    conn.on('open',()=>{ clearTimeout(slowTimer); conn.send({t:'hello', name:deviceName()}); $('recvStatus').textContent='Connected — waiting for the sender to accept…'; });
+    conn.on('data',async data=>{
+      if(data && data.t==='meta'){
+        gotMeta=data; chunks=[]; received=0;
+        $('recvProgress').classList.remove('hidden');
+        $('recvStatus').innerHTML='Receiving <b>'+esc(data.filename)+'</b> ('+fmtSize(data.size)+')…';
+        if(data.size===0){ finish(conn, gotMeta, new Blob([],{type:data.mime})); done=true; }
+      } else if(data && data.t==='declined'){
+        $('recvStatus').innerHTML='<span class="err">The sender declined this transfer.</span>';
+      } else if(data && data.t==='busy'){
+        $('recvStatus').innerHTML='<span class="err">The sender is busy with another transfer right now.</span>';
+      } else if(data && data.t==='end'){
+        if(gotMeta && !done){ done=true; finish(conn, gotMeta, new Blob(chunks,{type:gotMeta.mime})); }
+      } else if(data instanceof ArrayBuffer || data instanceof Uint8Array || (data && data.byteLength!==undefined)){
+        if(!gotMeta) return;
+        chunks.push(data); received+=(data.byteLength||data.length||0);
+        const pct=gotMeta.size?Math.floor(received*100/gotMeta.size):100;
+        $('recvBar').style.width=pct+'%';
+        $('recvPct').textContent=pct+'% ('+fmtSize(received)+' / '+fmtSize(gotMeta.size)+')';
+      }
+    });
+    conn.on('close',()=>{ if(!done && !gotMeta) $('recvStatus').innerHTML='<span class="err">Connection closed. Is the sender\u2019s page still open?</span>'; });
+  });
+  peer.on('error',err=>{
+    if(err.type==='peer-unavailable'){ $('recvStatus').innerHTML='<span class="err">No sender with that code. Check the code — and the sender must still have this page open with the file picked.</span>'; }
+    else { $('recvStatus').innerHTML='<span class="err">Connection problem: '+esc(err.type)+'</span>'; }
+  });
+});
+
+/* ---------------- DROP MODE ---------------- */
+const MAX_DROP=1073741824; // 1 GB
+const dropParams=new URLSearchParams(location.search);
+if(dropParams.get('d')){ $('pickCode').value=dropParams.get('d').toUpperCase(); $('pickStatus').textContent='Code filled in from the link — tap Find drop.'; }
+
+$('dropBtn').addEventListener('click', async ()=>{
+  const f=$('dropFile').files[0];
+  if(!f){ $('dropStatus').innerHTML='<span class="err">Pick a file first.</span>'; return; }
+  if(f.size>MAX_DROP){ $('dropStatus').innerHTML='<span class="err">That file is '+fmtSize(f.size)+' — drops are capped at 1 GB. Use Live mode for bigger files.</span>'; return; }
+  if(typeof window.__obUpload!=='function'){ $('dropStatus').innerHTML='<span class="err">The upload library is still loading or failed to load — check your connection and try again.</span>'; return; }
+  const btn=$('dropBtn'); btn.disabled=true;
+  $('dropOffer').classList.add('hidden');
+  try{
+    let hash='';
+    if(f.size<=256*1024*1024){
+      $('dropStatus').textContent='Computing checksum…';
+      hash=await sha256(await f.arrayBuffer());
+    }
+    const code=newCode();
+    const safeName=f.name.replace(/[^\w.\-]+/g,'_')||'file';
+    $('dropProgress').classList.remove('hidden');
+    $('dropStatus').textContent='Uploading '+f.name+' ('+fmtSize(f.size)+')…';
+    const blob=await window.__obUpload('drops/'+code+'/'+safeName, f, {
+      access:'public',
+      handleUploadUrl:'/api/blob-upload',
+      clientPayload: code,
+      onUploadProgress: e=>{
+        const pct=Math.floor(e.percentage||0);
+        $('dropBar').style.width=pct+'%';
+        $('dropPct').textContent='Uploading — '+pct+'%';
+      }
+    });
+    $('dropStatus').textContent='Registering the drop…';
+    const reg=await fetch('/api/register',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({code, url:blob.url, filename:f.name, size:f.size, sha256:hash, mime:f.type||'application/octet-stream'})});
+    const rj=await reg.json();
+    if(!rj.ok) throw new Error(rj.error||'registration failed');
+    const link=location.origin+location.pathname+'?d='+code;
+    $('dropOffer').classList.remove('hidden');
+    $('dropCodeShow').textContent=code;
+    $('dropLink').textContent=link;
+    $('dropCopyBtn').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(link);$('dropCopyBtn').textContent='Copied ✓';setTimeout(()=>$('dropCopyBtn').textContent='Copy pickup link',1500);};
+    $('dropMeta').innerHTML='<span class="ok">✅ Dropped.</span> Expires '+new Date(rj.expiresAt).toLocaleString()+
+      (hash?'<br><span class="mono">sha256 '+esc(hash.slice(0,16))+'…</span>':'');
+    $('dropStatus').textContent='';
+  }catch(e){
+    $('dropStatus').innerHTML='<span class="err">Upload failed: '+esc(e.message||e)+'</span>';
+  }finally{
+    btn.disabled=false;
+  }
+});
+
+async function resolveDrop(){
+  const code=$('pickCode').value.trim().toUpperCase();
+  if(code.length!==6){ $('pickStatus').innerHTML='<span class="err">That code should be 6 characters.</span>'; return; }
+  $('pickResult').innerHTML='';
+  $('pickStatus').textContent='Looking up…';
+  try{
+    const r=await fetch('/api/resolve?code='+encodeURIComponent(code));
+    const j=await r.json();
+    if(!j.ok){ $('pickStatus').innerHTML='<span class="err">'+esc(j.error||'not found')+'</span>'; return; }
+    $('pickStatus').textContent='';
+    $('pickResult').innerHTML='<div style="margin-top:6px"><b>'+esc(j.filename)+'</b> ('+fmtSize(j.size)+')<br>'+
+      '<span class="mono">expires '+esc(new Date(j.expiresAt).toLocaleString())+'</span>'+
+      (j.sha256?'<br><span class="mono">sha256 '+esc(j.sha256.slice(0,16))+'…</span>':'')+
+      '<br><a href="'+esc(j.url)+'" download="'+esc(j.filename)+'"><button style="margin-top:8px">Download</button></a></div>';
+  }catch(e){
+    $('pickStatus').innerHTML='<span class="err">Lookup failed — check your connection.</span>';
+  }
+}
+$('pickBtn').addEventListener('click', resolveDrop);
+if(dropParams.get('d')){ resolveDrop(); }
+
+async function finish(conn, meta, blob){
+  $('recvStatus').textContent='Verifying checksum…';
+  let okFlag=false, hash='';
+  try{ hash=await sha256(await blob.arrayBuffer()); okFlag=(hash===meta.sha256); }catch(e){ okFlag=false; }
+  try{ conn.send({t:'verified', ok:okFlag}); }catch(e){}
+  if(okFlag){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=meta.filename; document.body.appendChild(a); a.click(); a.remove();
+    $('recvStatus').innerHTML='<span class="ok">✅ Received and verified.</span>';
+    $('recvDone').innerHTML='<div style="margin-top:8px"><b>'+esc(meta.filename)+'</b> ('+fmtSize(meta.size)+')<br><span class="mono">sha256 '+esc(hash.slice(0,16))+'… ✓ matches sender</span><br><a href="'+url+'" download="'+esc(meta.filename)+'"><button class="ghost" style="margin-top:6px">Download again</button></a></div>';
+  } else {
+    $('recvStatus').innerHTML='<span class="err">⚠️ Checksum mismatch — the file did not arrive intact. Ask the sender to try again.</span>';
+  }
+}
+</script>
+<script type="module">
+try{
+  const mod=await import('https://esm.sh/@vercel/blob@2.8.2/client');
+  window.__obUpload=mod.upload;
+}catch(e){
+  window.__obUploadError=String(e&&e.message||e);
+}
+</script>
+</body>
+</html>
